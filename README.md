@@ -109,8 +109,7 @@ You are free to use, modify, and distribute it for personal or educational purpo
 
 ---
 
-Built with love for notes.
-
-```
+Built with love ❤
 
 ---
+
