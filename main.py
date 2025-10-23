@@ -78,24 +78,49 @@ def search_notes(queries: list) -> list:
 
     return sorted_results
 
+
+def search_to_context_str(search: list, n: int) -> str:
+    """
+    Will return the first n results as a big concatenated string
+    """
+
+    result = ""
+    for (note, count) in search[:n]:
+        result += note
+
+    return result
+
+
 class Chat():
     chat_history = []
 
-    def __init__(self):
+    system_prompt = """You are a helful assistant. I will pass you some context information about some topics i want to
+    discuss. Try to answer my questions as acuratelly as possible given the information i pass in the context. Do it in 
+    concise and clear manner, and try to explain as good as you can.
+    """
+
+    context_preprompt = """Here you have my notes on some topics i want to discuss. Take into account all of the ideas
+    mentioned. text between double square brackets represents links to other notes (example [[bola]] links to 'bola' note)
+    text between dollar signs and double dollar signs shall be read as latex ecuations. Here you go:
+    """
+
+    context_response = """Perfect! I will be glad to respond to your questions. What do you want to know about?"""
+
+    def __init__(self, context):
         safeload_env()
 
         self.client = genai.Client()
         self.chat = self.client.chats.create(
             model="gemini-2.5-flash-lite",
             config=types.GenerateContentConfig(
-                system_instruction="You are a pirate. Talk in strong piratey accent."
+                system_instruction=self.system_prompt
             ),
-            history=[types.Content(role="user", parts=[types.Part(text="Hi, I have two dogs.")]),
-                        types.Content(role="model", parts=[types.Part(text="Great to meet you, arr. What do you want to know about your dogs?")]),]
+            history=[types.Content(role="user", parts=[types.Part(text=self.context_preprompt + context)]),
+                        types.Content(role="model", parts=[types.Part(text=self.context_response)]),]
         )
 
     def get_response(self, client_message):
-        return self.chat.send_message(client_message)
+        return self.chat.send_message(client_message).text
 
     def get_history(self):
         return self.chat.get_history()
@@ -106,12 +131,27 @@ class Chat():
             print(message.parts[0].text)
 
 
-if __name__ == "__main__":
-    # queries = generate_query("Que es una bola en topologia?")
-    # print("Queries: " + str(queries))
-    # print(search_notes(queries))
 
-    new_chat = Chat()
-    print(new_chat.get_response("How many paws are those?").text)
-    print("--------------------")
-    print(new_chat.get_response("Cool, and how many tails??").text)
+
+
+if __name__ == "__main__":
+    question = input("Question: ")
+
+    queries = generate_query(question)
+
+    print("DEBUG: queries:" + str(queries))
+
+    notes_list = search_notes(queries)
+
+    print("DEBUG: notes: " + str(notes_list))
+
+    context = search_to_context_str(notes_list, 5)
+
+    mychat = Chat(context)
+
+    print(mychat.get_response(question))
+    print("-------------------------------------")
+
+    follow_up = input("Follow up: ")
+
+    print(mychat.get_response(follow_up))
