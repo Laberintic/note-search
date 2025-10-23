@@ -1,4 +1,5 @@
 from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 import os
 import re
@@ -77,7 +78,40 @@ def search_notes(queries: list) -> list:
 
     return sorted_results
 
+class Chat():
+    chat_history = []
+
+    def __init__(self):
+        safeload_env()
+
+        self.client = genai.Client()
+        self.chat = self.client.chats.create(
+            model="gemini-2.5-flash-lite",
+            config=types.GenerateContentConfig(
+                system_instruction="You are a pirate. Talk in strong piratey accent."
+            ),
+            history=[types.Content(role="user", parts=[types.Part(text="Hi, I have two dogs.")]),
+                        types.Content(role="model", parts=[types.Part(text="Great to meet you, arr. What do you want to know about your dogs?")]),]
+        )
+
+    def get_response(self, client_message):
+        return self.chat.send_message(client_message)
+
+    def get_history(self):
+        return self.chat.get_history()
+
+    def print_entire_chat(self):
+        for message in self.chat.get_history():
+            print(f'role - {message.role}',end=": ")
+            print(message.parts[0].text)
+
+
 if __name__ == "__main__":
-    queries = generate_query("Que es una bola en topologia?")
-    print("Queries: " + str(queries))
-    print(search_notes(queries))
+    # queries = generate_query("Que es una bola en topologia?")
+    # print("Queries: " + str(queries))
+    # print(search_notes(queries))
+
+    new_chat = Chat()
+    print(new_chat.get_response("How many paws are those?").text)
+    print("--------------------")
+    print(new_chat.get_response("Cool, and how many tails??").text)
