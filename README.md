@@ -1,3 +1,6 @@
+**DISCLAIMER: this build currently uses google's gemini API to get LLM responses. Take into account Googles ToS and Privacy Policy.**
+**If outside the UE... Google WILL use your messages for training.**
+
 # Obsidian LLM Assistant (WIP)
 
 A simple way to use Large Language Models (LLMs) to search through an [Obsidian](https://obsidian.md) vault and get personalized, context-aware responses.
@@ -112,4 +115,5 @@ You are free to use, modify, and distribute it for personal or educational purpo
 Built with love ❤
 
 ---
+
 
