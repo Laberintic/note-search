@@ -3,6 +3,7 @@ from google.genai import types
 from dotenv import load_dotenv
 import os
 import re
+import logging
 
 
 def get_obsidian_path():
@@ -79,13 +80,36 @@ def search_notes(queries: list) -> list:
     return sorted_results
 
 
+def search_until_finds(question: str, max_tries: int) -> str:
+    queries = generate_query(question)
+    logging.debug("Generated queries: %s", str(queries))
+    notes = search_notes(queries)
+    logging.debug("Found a total of %d related notes", len(notes))
+
+    past_queries = []
+    past_queries.append(queries)
+    
+    for i in range(max_tries):
+        logging.debug("Starting try %d.", i)
+        if len(notes) > 0:
+            logging.debug("Try sucessful.")
+            return search_to_context_str(notes, 5)
+        queries = generate_query(question + "- DO NOT INCLUDE: " + str(past_queries))
+        notes = search_notes(queries)
+        past_queries.append(queries)
+
+    logging.debug("No notes were found after %d tries. Aborting.", max_tries)
+    return "NO RELEVANT NOTES WERE FOUND."
+
+
 def search_to_context_str(search: list, n: int) -> str:
     """
     Will return the first n results as a big concatenated string
     """
+    # TODO: limit size
 
     result = ""
-    for (note, count) in search[:n]:
+    for (note, count) in search:
         result += note
 
     return result
@@ -120,6 +144,7 @@ class Chat():
         )
 
     def get_response(self, client_message):
+        logging.debug("Waiting for API response.")
         return self.chat.send_message(client_message).text
 
     def get_history(self):
@@ -135,17 +160,13 @@ class Chat():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    logging.debug("Init.")
     question = input("Question: ")
 
-    queries = generate_query(question)
-
-    print("DEBUG: queries:" + str(queries))
-
-    notes_list = search_notes(queries)
-
-    print("DEBUG: notes: " + str(notes_list))
-
-    context = search_to_context_str(notes_list, 5)
+    context = search_until_finds(question, 3)
 
     mychat = Chat(context)
 
