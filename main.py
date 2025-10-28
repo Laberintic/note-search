@@ -5,6 +5,8 @@ import os
 import re
 import logging
 
+import streamlit as st
+
 
 def get_obsidian_path():
     safeload_env()
@@ -81,6 +83,10 @@ def search_notes(queries: list) -> list:
 
 
 def search_until_finds(question: str, max_tries: int) -> str:
+    """
+    Centralizes the entire searching process
+    """
+
     queries = generate_query(question)
     logging.debug("Generated queries: %s", str(queries))
     notes = search_notes(queries)
@@ -99,7 +105,7 @@ def search_until_finds(question: str, max_tries: int) -> str:
         past_queries.append(queries)
 
     logging.debug("No notes were found after %d tries. Aborting.", max_tries)
-    return "NO RELEVANT NOTES WERE FOUND."
+    return "NO SE ENCONTRARON NOTAS RELEVANTES."
 
 
 def search_to_context_str(search: list, n: int) -> str:
@@ -118,17 +124,17 @@ def search_to_context_str(search: list, n: int) -> str:
 class Chat():
     chat_history = []
 
-    system_prompt = """You are a helful assistant. I will pass you some context information about some topics i want to
-    discuss. Try to answer my questions as acuratelly as possible given the information i pass in the context. Do it in 
-    concise and clear manner, and try to explain as good as you can.
+    system_prompt = """Eres un asistente servicial. Te proporcionaré información contextual sobre algunos temas que quiero discutir. Intenta responder a mis preguntas lo más exactamente posible según la información que te proporcione en el contexto. Hazlo de manera concisa y clara, y trata de explicar lo mejor que puedas.
     """
 
-    context_preprompt = """Here you have my notes on some topics i want to discuss. Take into account all of the ideas
-    mentioned. text between double square brackets represents links to other notes (example [[bola]] links to 'bola' note)
-    text between dollar signs and double dollar signs shall be read as latex ecuations. Here you go:
+    context_preprompt = """
+Aquí tienes mis notas sobre algunos temas que quiero discutir. Ten en cuenta todas las ideas mencionadas.
+El texto entre dobles corchetes representa enlaces a otras notas (por ejemplo, [[bola]] enlaza a la nota “bola”).
+El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuaciones en LaTeX. Aquí tienes:
     """
 
-    context_response = """Perfect! I will be glad to respond to your questions. What do you want to know about?"""
+    context_response = """¡Perfecto! Estaré encantado de responder a tus preguntas. ¿Sobre qué te gustaría saber?
+"""
 
     def __init__(self, context):
         safeload_env()
@@ -157,22 +163,72 @@ class Chat():
 
 
 
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+    # --- Page setup ---
+    st.set_page_config(page_title="AI Chatbot", layout="centered")
+
+    # --- Theme toggle ---
+    if "theme" not in st.session_state:
+        st.session_state.theme = "light"
+
+    toggle = st.toggle("🌙 Dark mode", value=(st.session_state.theme == "dark"))
+    st.session_state.theme = "dark" if toggle else "light"
+
+    # Apply simple dark/light theme
+    if st.session_state.theme == "dark":
+        st.markdown("""
+            <style>
+            body { background-color: #0E1117; color: white; }
+            .stTextInput>div>div>input { background-color: #1E1E1E; color: white; }
+            </style>
+        """, unsafe_allow_html=True)
+
+    # --- Chat state ---
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "chat_instance" not in st.session_state:
+        st.session_state.chat_instance = None
+
+    # --- Chat display ---
+    st.title("💬 AI Chatbot")
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # --- Input box ---
+    user_input = st.chat_input("Type your message...")
+
+    if user_input:
+        # Display user message
+        st.chat_message("user").markdown(user_input)
+        st.session_state.messages.append({"role": "user", "content": user_input})
+
+        # --- BACKEND LOGIC ---
+        if st.session_state.chat_instance is None:
+            # FIRST MESSAGE → create a chat instance
+            # Replace this line with your actual backend initialization
+            context = search_until_finds(user_input, 3)
+            st.session_state.chat_instance = Chat(context)
+            ai_response = st.session_state.chat_instance.get_response(user_input)
+        else:
+            # FOLLOW-UP MESSAGE → use existing instance
+            # Replace this line with your chat_instance method call
+            ai_response = st.session_state.chat_instance.get_response(user_input)
+        # ----------------------
+
+        # Display AI response
+        with st.chat_message("assistant"):
+            st.markdown(ai_response)
+        st.session_state.messages.append({"role": "assistant", "content": ai_response})
+
     
     logging.debug("Init.")
     question = input("Question: ")
 
-    context = search_until_finds(question, 3)
-
-    mychat = Chat(context)
 
     print(mychat.get_response(question))
-    print("-------------------------------------")
-
-    follow_up = input("Follow up: ")
-
-    print(mychat.get_response(follow_up))
