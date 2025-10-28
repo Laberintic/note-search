@@ -35,11 +35,11 @@ GOOGLE_API_KEY=your_google_api_key_here
 
 * [x] Generate search queries using Gemini.
 * [x] Scan Obsidian notes for term frequency.
-* [ ] Summarize and answer based on note content.
+* [x] Summarize and answer based on note content.
 
 ### Phase 2 — Source-Aware Responses
 
-* [ ] Display which notes were referenced in each answer.
+* [/] Display which notes were referenced in each answer.
 * [ ] Optionally link directly to notes in the vault.
 
 ### Phase 3 — Local UI
@@ -62,6 +62,7 @@ browsing my notes much easyer and to learn how to use APIs in the process.
 
 * **Python 3.10+**
 * **Google Gemini API** (`google-genai`)
+* **Streamlit UI** (`streamlit`)
 
 ---
 
@@ -70,14 +71,14 @@ browsing my notes much easyer and to learn how to use APIs in the process.
 1. **Clone this repository**
 
    ```bash
-   git clone https://github.com/yourusername/obsidian-llm-assistant.git
-   cd obsidian-llm-assistant
+   git clone https://github.com/Laberintic/note-search.git
+   cd note-search
    ```
 
 2. **Install dependencies**
 
    ```bash
-   pip install -r requirements.txt
+   uv install
    ```
 
 3. **Create a `.env` file**
@@ -91,6 +92,7 @@ browsing my notes much easyer and to learn how to use APIs in the process.
 
    ```bash
    python main.py
+   // or use uv run main.py
    ```
 
 ---
@@ -115,5 +117,6 @@ You are free to use, modify, and distribute it for personal or educational purpo
 Built with love ❤
 
 ---
+
 
 
