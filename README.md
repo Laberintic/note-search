@@ -39,7 +39,7 @@ GOOGLE_API_KEY=your_google_api_key_here
 
 ### Phase 2 — Source-Aware Responses
 
-* [/] Display which notes were referenced in each answer.
+* [ ] Display which notes were referenced in each answer.
 * [ ] Optionally link directly to notes in the vault.
 
 ### Phase 3 — Local UI
@@ -117,6 +117,7 @@ You are free to use, modify, and distribute it for personal or educational purpo
 Built with love ❤
 
 ---
+
 
 
 
