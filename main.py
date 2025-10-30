@@ -7,6 +7,7 @@ import logging
 
 import streamlit as st
 
+MAX_NOTES = 10
 
 def get_obsidian_path():
     safeload_env()
@@ -75,7 +76,7 @@ def search_notes(queries: list) -> list:
                         # honestly dont know how this regex works, but it does. Cool!
 
                         if count > 0:
-                            notes_with_appearences.append((os.path.join(root, file), count))
+                            notes_with_appearences.append((os.path.join(root, file), count, contents))
 
     sorted_results = sorted(notes_with_appearences, key=lambda x: x[1])
 
@@ -88,24 +89,58 @@ def search_until_finds(question: str, max_tries: int) -> str:
     """
 
     queries = generate_query(question)
-    logging.debug("Generated queries: %s", str(queries))
+    logging.info("Generated queries: %s", str(queries))
     notes = search_notes(queries)
-    logging.debug("Found a total of %d related notes", len(notes))
+    logging.info("Found a total of %d related notes", len(notes))
 
-    past_queries = []
-    past_queries.append(queries)
+    # TODO: make it select the notes?
+    prompt = f"Como asistente, es suficiente este contexto para responder a '{question}', es decir, menciona la idea o ideas? responde unicamente 'si' o 'no', pon un guion '-' y explica por que. CONTEXTO" + search_to_context_str(notes, MAX_NOTES) + "FIN DE CONTEXTO"
+
+    prompt = f"""
+    Como asistente que ha de responder a esta pregunta: '{question}', cuales de las notas pasadas son las mas
+    utiles y por tanto deberian ser pasadas al encargado de respodner a la pregunta de la forma mas correcta
+    posible? No tiene porque ser el tema concreto pues tal vez no existe nota para tal tema, pero temas similares
+    o relacionados. Devuelvelos de una en una, con el nombre entero del path.
+    Ejemplo:
+    /path/to/notea.md
+    /path/to/noteb.md
+    Fin ejemplo. Ahora tu. Aqui tienes el contexto.
+    INICIO CONTEXTO
+    {search_to_context_str(notes, MAX_NOTES)}
+    FIN CONTEXTO
+    """
+
+    client = genai.Client()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash-lite",
+        contents=prompt,
+    )
+
+    result = []
+    for note in notes:
+        if note[0] in response.text:
+            result.append(note)
+
+    if len(result) == 0:
+        logging.info("No notes found.")
+        return "NO NOTES FOUND. APOLOGIZE TO THE USER, OUR SYSTEM FAILED"
+
+    logging.info(result)
+    return search_to_context_str(result, MAX_NOTES)
+
     
-    for i in range(max_tries):
-        logging.debug("Starting try %d.", i)
-        if len(notes) > 0:
-            logging.debug("Try sucessful.")
-            return search_to_context_str(notes, 5)
-        queries = generate_query(question + "- DO NOT INCLUDE: " + str(past_queries))
-        notes = search_notes(queries)
-        past_queries.append(queries)
 
-    logging.debug("No notes were found after %d tries. Aborting.", max_tries)
-    return "NO SE ENCONTRARON NOTAS RELEVANTES."
+    # past_queries = []
+    # past_queries.append(queries)
+    
+    # for i in range(max_tries):
+    #     logging.debug("Starting try %d.", i)
+    #     if len(notes) > 0:
+    #         logging.debug("Try sucessful.")
+    #         return search_to_context_str(notes, 5)
+    #     queries = generate_query(question + "- DO NOT INCLUDE: " + str(past_queries))
+    #     notes = search_notes(queries)
+    #     past_queries.append(queries)
 
 
 def search_to_context_str(search: list, n: int) -> str:
@@ -115,11 +150,11 @@ def search_to_context_str(search: list, n: int) -> str:
     # TODO: limit size
 
     result = ""
-    for (note, count) in search:
+    for (note, count, context) in search:
         result += f"""AQUI TIENES LA SIGUIENTE NOTA RELEVANTE; APOTAYE EN ELLA PARA RESPONDER:
         (Nombre de la nota: {note}). CONTENIDOS:
         """
-        result += note
+        result += context
         result += f"FIN DE LA NOTA {note}"
 
     return result
@@ -133,6 +168,10 @@ class Chat():
 
     context_preprompt = """
 Aquí tienes mis notas sobre algunos temas que quiero discutir. Ten en cuenta todas las ideas mencionadas.
+Trata de responder a mi pregunta de la forma mas correcta aunque no encuentres el tema concreto, casi siempre
+habra textos con ideas similares o relacionadas. Si realmente no encuentras nada, disculpate y explica por que.
+Siempre trata de mencionar de donde sacas las ideas. Prefiere una respuesta mas superficial y basada en notas
+a una mas compleja que no este en notas.
 El texto entre dobles corchetes representa enlaces a otras notas (por ejemplo, [[bola]] enlaza a la nota “bola”).
 El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuaciones en LaTeX. Aquí tienes:
     """
@@ -168,7 +207,7 @@ El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuac
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(levelname)s - %(message)s')
 
         # --- PAGE SETUP ---
