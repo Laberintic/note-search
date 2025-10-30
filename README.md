@@ -79,6 +79,7 @@ browsing my notes much easyer and to learn how to use APIs in the process.
 
    ```bash
    uv install
+   source .venv/bin/activate
    ```
 
 3. **Create a `.env` file**
@@ -91,8 +92,7 @@ browsing my notes much easyer and to learn how to use APIs in the process.
 4. **Run the script**
 
    ```bash
-   python main.py
-   // or use uv run main.py
+   streamlit run main.py
    ```
 
 ---
@@ -117,6 +117,7 @@ You are free to use, modify, and distribute it for personal or educational purpo
 Built with love ❤
 
 ---
+
 
 
 
