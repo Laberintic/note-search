@@ -116,7 +116,11 @@ def search_to_context_str(search: list, n: int) -> str:
 
     result = ""
     for (note, count) in search:
+        result += f"""AQUI TIENES LA SIGUIENTE NOTA RELEVANTE; APOTAYE EN ELLA PARA RESPONDER:
+        (Nombre de la nota: {note}). CONTENIDOS:
+        """
         result += note
+        result += f"FIN DE LA NOTA {note}"
 
     return result
 
@@ -167,68 +171,82 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s - %(levelname)s - %(message)s')
 
+        # --- PAGE SETUP ---
+    st.set_page_config(page_title="AI Chatbot", layout="wide")
 
-    # --- Page setup ---
-    st.set_page_config(page_title="AI Chatbot", layout="centered")
+    # --- SESSION STATE INIT ---
+    if "chats" not in st.session_state:
+        st.session_state.chats = {}
+    if "current_chat" not in st.session_state:
+        st.session_state.current_chat = None
 
-    # --- Theme toggle ---
-    if "theme" not in st.session_state:
-        st.session_state.theme = "light"
+    # --- HELPER FUNCTIONS ---
+    def new_chat():
+        """Create a new empty chat session."""
+        chat_id = f"Chat {len(st.session_state.chats) + 1}"
+        st.session_state.chats[chat_id] = {"messages": [], "chat_instance": None}
+        st.session_state.current_chat = chat_id
 
-    toggle = st.toggle("🌙 Dark mode", value=(st.session_state.theme == "dark"))
-    st.session_state.theme = "dark" if toggle else "light"
+    def delete_chat(chat_id):
+        """Safely delete a chat and switch to another if available."""
+        if chat_id in st.session_state.chats:
+            del st.session_state.chats[chat_id]
+        if st.session_state.chats:
+            # Pick the most recent remaining chat as current
+            st.session_state.current_chat = list(st.session_state.chats.keys())[-1]
+        else:
+            new_chat()
 
-    # Apply simple dark/light theme
-    if st.session_state.theme == "dark":
-        st.markdown("""
-            <style>
-            body { background-color: #0E1117; color: white; }
-            .stTextInput>div>div>input { background-color: #1E1E1E; color: white; }
-            </style>
-        """, unsafe_allow_html=True)
+    # --- INITIAL STATE ---
+    if not st.session_state.chats:
+        new_chat()
 
-    # --- Chat state ---
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "chat_instance" not in st.session_state:
-        st.session_state.chat_instance = None
+    # --- SIDEBAR ---
+    st.sidebar.title("💬 Chats")
 
-    # --- Chat display ---
-    st.title("💬 AI Chatbot")
+    # New chat button
+    if st.sidebar.button("➕ New Chat", use_container_width=True):
+        new_chat()
+        st.rerun()
 
-    for msg in st.session_state.messages:
+    # Chat list
+    for chat_id in list(st.session_state.chats.keys()):
+        is_selected = chat_id == st.session_state.current_chat
+        cols = st.sidebar.columns([0.8, 0.2])
+        if cols[0].button(chat_id, use_container_width=True):
+            st.session_state.current_chat = chat_id
+            st.rerun()
+        if cols[1].button("🗑️", key=f"del_{chat_id}"):
+            delete_chat(chat_id)
+            st.rerun()
+
+    # --- MAIN CHAT UI ---
+    chat_data = st.session_state.chats[st.session_state.current_chat]
+    st.title("🤖 AI Chatbot")
+
+    # Display messages
+    for msg in chat_data["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # --- Input box ---
+    # Input box
     user_input = st.chat_input("Type your message...")
 
     if user_input:
         # Display user message
         st.chat_message("user").markdown(user_input)
-        st.session_state.messages.append({"role": "user", "content": user_input})
+        chat_data["messages"].append({"role": "user", "content": user_input})
 
-        # --- BACKEND LOGIC ---
-        if st.session_state.chat_instance is None:
-            # FIRST MESSAGE → create a chat instance
-            # Replace this line with your actual backend initialization
+        # --- BACKEND LOGIC (replace with your actual functions) ---
+        if chat_data["chat_instance"] is None:
             context = search_until_finds(user_input, 3)
-            st.session_state.chat_instance = Chat(context)
-            ai_response = st.session_state.chat_instance.get_response(user_input)
+            chat_data["chat_instance"] = Chat(context)
+            ai_response = chat_data["chat_instance"].get_response(user_input)
         else:
-            # FOLLOW-UP MESSAGE → use existing instance
-            # Replace this line with your chat_instance method call
-            ai_response = st.session_state.chat_instance.get_response(user_input)
-        # ----------------------
+            ai_response = chat_data["chat_instance"].get_response(user_input)
+        # -----------------------------------------------------------
 
-        # Display AI response
+        # Display AI message
         with st.chat_message("assistant"):
             st.markdown(ai_response)
-        st.session_state.messages.append({"role": "assistant", "content": ai_response})
-
-    
-    logging.debug("Init.")
-    question = input("Question: ")
-
-
-    print(mychat.get_response(question))
+        chat_data["messages"].append({"role": "assistant", "content": ai_response})
