@@ -7,7 +7,11 @@ import logging
 
 import streamlit as st
 
-MAX_NOTES = 10
+
+MAX_NOTES = 100
+
+QUERIES_MIN = 5
+QUERIES_MAX = 12
 
 def get_obsidian_path():
     safeload_env()
@@ -24,9 +28,9 @@ def safeload_env():
 
 
 def generate_query(prompt: str) -> list:
-    preprompt = """
+    preprompt = f"""
     Necesito que, dada una pregunta, idea o termino de busqueda, generes
-    entre 5 y 7 terminos de busqueda concretos relacionados con ese tema.
+    entre {QUERIES_MIN} y {QUERIES_MAX} terminos de busqueda concretos relacionados con ese tema.
     No hagas terminos genericos. Cada termino deberia ser de una palabra de longitud
     pues se va a buscar cuantas veces aparece en distintos apuntes. Cada termino
     debe tener como maximo dos palabras de longitud.
@@ -125,7 +129,8 @@ def search_until_finds(question: str, max_tries: int) -> str:
         logging.info("No notes found.")
         return "NO NOTES FOUND. APOLOGIZE TO THE USER, OUR SYSTEM FAILED"
 
-    logging.info(result)
+    logging.info(f"Selected the following notes: \n{"\n".join(f"{i+1}. {item[:-1]}" for i, item in enumerate(result))}")
+
     return search_to_context_str(result, MAX_NOTES)
 
     
@@ -194,7 +199,7 @@ El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuac
 
     def get_response(self, client_message):
         logging.debug("Waiting for API response.")
-        return self.chat.send_message(client_message).text
+        return self.chat.send_message_stream(client_message)
 
     def get_history(self):
         return self.chat.get_history()
@@ -276,16 +281,24 @@ if __name__ == "__main__":
         st.chat_message("user").markdown(user_input)
         chat_data["messages"].append({"role": "user", "content": user_input})
 
-        # --- BACKEND LOGIC (replace with your actual functions) ---
+        # Create a new chat on first run
         if chat_data["chat_instance"] is None:
             context = search_until_finds(user_input, 3)
             chat_data["chat_instance"] = Chat(context)
-            ai_response = chat_data["chat_instance"].get_response(user_input)
-        else:
-            ai_response = chat_data["chat_instance"].get_response(user_input)
-        # -----------------------------------------------------------
 
-        # Display AI message
+        # Stream the AI response inside the assistant message container
         with st.chat_message("assistant"):
-            st.markdown(ai_response)
-        chat_data["messages"].append({"role": "assistant", "content": ai_response})
+            response_placeholder = st.empty()
+            full_response = ""
+
+            ai_response = chat_data["chat_instance"].get_response(user_input)
+            for chunk in ai_response:
+                if chunk.text:
+                    full_response += chunk.text
+                    response_placeholder.markdown(full_response + "▌")
+
+            # Final clean message (no cursor)
+        response_placeholder.markdown(full_response)
+
+        # Save to history
+        chat_data["messages"].append({"role": "assistant", "content": full_response})
