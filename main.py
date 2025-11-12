@@ -66,15 +66,17 @@ def search_notes(queries: list) -> list:
     a list of tuples (filepath, query appearance)
     """
     notes_with_appearences = []
-    
 
     for root, _, files in os.walk(get_obsidian_path()):
         for query in queries:
             pattern = r"\b" + re.escape(query) + r"\b"
             for file in files:
                 if file.endswith(".md"):
-                    with open(os.path.join(root, file), "r") as f:
+                    with open(os.path.join(root, file), "r", encoding="utf-8", errors="replace") as f:
+                        
+                        #logging.info("Read: " + file)
                         contents = f.read()
+                        
                         count = len(re.findall(pattern, contents))
 
                         # honestly dont know how this regex works, but it does. Cool!
@@ -97,18 +99,17 @@ def search_until_finds(question: str, max_tries: int) -> str:
     notes = search_notes(queries)
     logging.info("Found a total of %d related notes", len(notes))
 
-    # TODO: make it select the notes?
-    prompt = f"Como asistente, es suficiente este contexto para responder a '{question}', es decir, menciona la idea o ideas? responde unicamente 'si' o 'no', pon un guion '-' y explica por que. CONTEXTO" + search_to_context_str(notes, MAX_NOTES) + "FIN DE CONTEXTO"
+    # prompt = f"Como asistente, es suficiente este contexto para responder a '{question}', es decir, menciona la idea o ideas? responde unicamente 'si' o 'no', pon un guion '-' y explica por que. CONTEXTO" + search_to_context_str(notes, MAX_NOTES) + "FIN DE CONTEXTO"
 
     prompt = f"""
-    Como asistente que ha de responder a esta pregunta: '{question}', cuales de las notas pasadas son las mas
-    utiles y por tanto deberian ser pasadas al encargado de respodner a la pregunta de la forma mas correcta
-    posible? No tiene porque ser el tema concreto pues tal vez no existe nota para tal tema, pero temas similares
-    o relacionados. Devuelvelos de una en una, con el nombre entero del path.
+    Para responder a esta pregunta: '{question}', cuales de las notas pasadas son las mas
+    utiles? No tiene porque ser el tema concreto pues tal vez no existe nota para tal tema, pero temas similares
+    o relacionados. Devuelvelos de una en una, con el nombre entero del path. Devuelve al menos cinco notas.
     Ejemplo:
     /path/to/notea.md
     /path/to/noteb.md
-    Fin ejemplo. Ahora tu. Aqui tienes el contexto.
+    ...
+    Fin ejemplo.
     INICIO CONTEXTO
     {search_to_context_str(notes, MAX_NOTES)}
     FIN CONTEXTO
@@ -119,6 +120,8 @@ def search_until_finds(question: str, max_tries: int) -> str:
         model="gemini-2.5-flash-lite",
         contents=prompt,
     )
+    logging.info(str(notes) + "\n ---------------------------------------------")
+    logging.info(response.text)
 
     result = []
     for note in notes:
@@ -132,20 +135,6 @@ def search_until_finds(question: str, max_tries: int) -> str:
     logging.info(f"Selected the following notes: \n{"\n".join(f"{i+1}. {item[:-1]}" for i, item in enumerate(result))}")
 
     return search_to_context_str(result, MAX_NOTES)
-
-    
-
-    # past_queries = []
-    # past_queries.append(queries)
-    
-    # for i in range(max_tries):
-    #     logging.debug("Starting try %d.", i)
-    #     if len(notes) > 0:
-    #         logging.debug("Try sucessful.")
-    #         return search_to_context_str(notes, 5)
-    #     queries = generate_query(question + "- DO NOT INCLUDE: " + str(past_queries))
-    #     notes = search_notes(queries)
-    #     past_queries.append(queries)
 
 
 def search_to_context_str(search: list, n: int) -> str:
@@ -186,7 +175,7 @@ El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuac
 
     def __init__(self, context):
         safeload_env()
-
+        self.context = context
         self.client = genai.Client()
         self.chat = self.client.chats.create(
             model="gemini-2.5-flash-lite",
@@ -199,7 +188,19 @@ El texto entre signos de dólar y dobles signos de dólar debe leerse como ecuac
 
     def get_response(self, client_message):
         logging.debug("Waiting for API response.")
-        return self.chat.send_message_stream(client_message)
+        # ask for new context?
+        prompt = f"En el siguiente contexto, se puede encontrar o deducir la respuesta a esta pregunta '{client_message}'? Responde simplemente con 'SI' o 'NO' \n"
+        response = self.client.models.generate_content(
+        model="gemini-2.5-flash-lite",
+        contents=prompt + self.context,
+        )
+        if "NO" in response.text.upper():
+            logging.info("Adding more context to better respond to this question.")
+            new_ctx = search_until_finds(client_message, 3)
+        else:
+            new_ctx = ""
+
+        return self.chat.send_message_stream(client_message + "\n" + new_ctx)
 
     def get_history(self):
         return self.chat.get_history()
